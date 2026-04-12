@@ -39,6 +39,19 @@
       pointer-events:none;
       user-select:none;
     }
+    body::after{
+      content:"";
+      position:fixed;
+      top:18px;
+      right:18px;
+      width:260px;
+      height:260px;
+      border-radius:50%;
+      border:1px solid rgba(247,199,92,.08);
+      box-shadow:0 0 0 18px rgba(247,199,92,.03),0 0 0 36px rgba(247,199,92,.02);
+      z-index:0;
+      pointer-events:none;
+    }
     .wrap{
       position:relative;
       z-index:1;
@@ -71,6 +84,9 @@
       font-weight:800;
       cursor:pointer;
     }
+    .btn:hover{
+      background:linear-gradient(180deg,#2f2f2f 0%,#1d1d1d 100%);
+    }
     .kpi-grid{
       display:grid;
       grid-template-columns:repeat(8,minmax(0,1fr));
@@ -78,7 +94,9 @@
       margin-bottom:22px;
     }
     .card{
-      background:radial-gradient(circle at top left,rgba(247,199,92,.08),transparent 35%),linear-gradient(180deg,#131313 0%,#0c0c0c 100%);
+      background:
+        radial-gradient(circle at top left,rgba(247,199,92,.08),transparent 35%),
+        linear-gradient(180deg,#131313 0%,#0c0c0c 100%);
       border:1px solid var(--border);
       border-radius:18px;
       padding:16px;
@@ -99,6 +117,7 @@
       line-height:1.15;
       font-weight:900;
       color:var(--gold);
+      word-break:break-word;
     }
     .section{margin-top:24px}
     .section h2{
@@ -186,25 +205,25 @@
 
     <div class="card">
       <h3>持股數量</h3>
-      <div class="sub">購買總股</div>
+      <div class="sub">E 欄總和</div>
       <div class="value" id="kpiShares">--</div>
     </div>
 
     <div class="card">
       <h3>持股市值</h3>
-      <div class="sub">即時股價 × 股數</div>
+      <div class="sub">即時股價 × 持股數量</div>
       <div class="value" id="kpiMarketValue">--</div>
     </div>
 
     <div class="card">
       <h3>平均成本</h3>
-      <div class="sub">成本</div>
+      <div class="sub">總成本 ÷ 持股數量</div>
       <div class="value" id="kpiCost">--</div>
     </div>
 
     <div class="card">
       <h3>總成本</h3>
-      <div class="sub">買價總額</div>
+      <div class="sub">買價總額總和</div>
       <div class="value" id="kpiBuyAmount">--</div>
     </div>
 
@@ -250,17 +269,19 @@
         <thead>
           <tr>
             <th>年份</th>
-            <th>期末股價</th>
-            <th>期末股數</th>
-            <th>期末總成本</th>
-            <th>期末平均成本</th>
-            <th>期末市值</th>
-            <th>期末未實現損益</th>
-            <th>期末報酬率</th>
+            <th>當年買入股數</th>
+            <th>當年買入成本</th>
+            <th>年底累積股數</th>
+            <th>年底累積總成本</th>
+            <th>年底收盤價</th>
+            <th>年底平均成本</th>
+            <th>年底市值</th>
+            <th>年底未實現損益</th>
+            <th>年底報酬率</th>
           </tr>
         </thead>
         <tbody id="yearSummaryBody">
-          <tr><td colspan="8">載入中...</td></tr>
+          <tr><td colspan="10">載入中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -305,6 +326,16 @@ function formatNumber(n, digits = 0) {
   });
 }
 
+function formatDateText(dateValue) {
+  if (!dateValue) return "--";
+  const d = new Date(dateValue);
+  if (isNaN(d.getTime())) return String(dateValue);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function setStatus(text) {
   document.getElementById("status").innerText = text;
 }
@@ -328,38 +359,53 @@ function destroyCharts() {
   if (diffChart) diffChart.destroy();
 }
 
+function getPortfolioMetrics(rows, realtimePrice) {
+  const totalShares = rows.reduce((sum, r) => sum + Number(r.totalShares || 0), 0);
+  const totalBuyAmount = rows.reduce((sum, r) => sum + Number(r.buyAmount || 0), 0);
+  const avgCost = totalShares ? totalBuyAmount / totalShares : 0;
+  const marketValue = realtimePrice * totalShares;
+  const profit = marketValue - totalBuyAmount;
+  const returnRate = totalBuyAmount ? (profit / totalBuyAmount) * 100 : 0;
+
+  return {
+    totalShares,
+    totalBuyAmount,
+    avgCost,
+    marketValue,
+    profit,
+    returnRate
+  };
+}
+
 function renderKPI(payload) {
+  const rows = payload.rows || [];
   const latest = payload.latest;
   const realtimePrice = Number(payload.realtimePrice || 0);
   const latestPrice = Number(latest?.price || 0);
-  const shares = Number(latest?.totalShares || 0);
-  const buyAmount = Number(latest?.buyAmount || 0);
-  const cost = Number(latest?.cost || 0);
-  const marketValue = realtimePrice * shares;
-  const profit = marketValue - buyAmount;
-  const returnRate = buyAmount ? (profit / buyAmount) * 100 : 0;
 
-  document.getElementById("kpiLatestDate").innerText = latest?.date || "--";
+  const metrics = getPortfolioMetrics(rows, realtimePrice);
+
+  document.getElementById("kpiLatestDate").innerText = formatDateText(latest?.date);
 
   animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
   animateValue(document.getElementById("kpiLatestPrice"), latestPrice, 2);
-  animateValue(document.getElementById("kpiShares"), shares, 0);
-  animateValue(document.getElementById("kpiMarketValue"), marketValue, 0);
-  animateValue(document.getElementById("kpiCost"), cost, 4);
-  animateValue(document.getElementById("kpiBuyAmount"), buyAmount, 4);
-  animateValue(document.getElementById("kpiProfit"), profit, 2);
-
-  const rr = document.getElementById("kpiReturnRate");
-  rr.className = "value " + (returnRate >= 0 ? "up" : "down");
-  rr.innerText = `${formatNumber(returnRate, 2)}%`;
+  animateValue(document.getElementById("kpiShares"), metrics.totalShares, 0);
+  animateValue(document.getElementById("kpiMarketValue"), metrics.marketValue, 0);
+  animateValue(document.getElementById("kpiCost"), metrics.avgCost, 4);
+  animateValue(document.getElementById("kpiBuyAmount"), metrics.totalBuyAmount, 4);
+  animateValue(document.getElementById("kpiProfit"), metrics.profit, 2);
 
   const p = document.getElementById("kpiProfit");
-  p.className = "value " + (profit >= 0 ? "up" : "down");
+  p.className = "value " + (metrics.profit >= 0 ? "up" : "down");
+
+  const rr = document.getElementById("kpiReturnRate");
+  rr.className = "value " + (metrics.returnRate >= 0 ? "up" : "down");
+  rr.innerText = `${formatNumber(metrics.returnRate, 2)}%`;
 }
 
 function renderCharts(payload) {
-  const data = payload.rows;
-  const labels = data.map(x => x.date);
+  const data = payload.rows || [];
+  const labels = data.map(x => formatDateText(x.date));
   const prices = data.map(x => Number(x.price || 0));
   const costs = data.map(x => Number(x.cost || 0));
   const perShareDiff = data.map(x => Number(x.perShareDiff || 0));
@@ -465,46 +511,75 @@ function renderCharts(payload) {
 
 function renderYearSummary(payload) {
   const tbody = document.getElementById("yearSummaryBody");
+  const rows = payload.rows || [];
   const grouped = {};
 
-  payload.rows.forEach(r => {
-    const year = String(r.date).slice(0, 4);
-    grouped[year] = r; // 每年最後一筆覆蓋，保留年末狀態
+  rows.forEach(r => {
+    const year = new Date(r.date).getFullYear();
+    if (!grouped[year]) {
+      grouped[year] = {
+        year,
+        yearShares: 0,
+        yearBuyAmount: 0,
+        closingPrice: 0
+      };
+    }
+    grouped[year].yearShares += Number(r.totalShares || 0);
+    grouped[year].yearBuyAmount += Number(r.buyAmount || 0);
+    grouped[year].closingPrice = Number(r.price || 0);
   });
 
-  const years = Object.keys(grouped).sort((a, b) => Number(b) - Number(a));
-  tbody.innerHTML = years.map(year => {
-    const r = grouped[year];
-    const price = Number(r.price || 0);
-    const shares = Number(r.totalShares || 0);
-    const buyAmount = Number(r.buyAmount || 0);
-    const cost = Number(r.cost || 0);
-    const marketValue = price * shares;
-    const profit = marketValue - buyAmount;
-    const returnRate = buyAmount ? (profit / buyAmount) * 100 : 0;
+  const years = Object.keys(grouped).map(Number).sort((a, b) => a - b);
 
-    return `
-      <tr>
-        <td class="row-head">${year}</td>
-        <td>${formatNumber(price, 2)}</td>
-        <td>${formatNumber(shares, 0)}</td>
-        <td>${formatNumber(buyAmount, 4)}</td>
-        <td>${formatNumber(cost, 4)}</td>
-        <td>${formatNumber(marketValue, 2)}</td>
-        <td class="${profit >= 0 ? 'up' : 'down'}">${formatNumber(profit, 2)}</td>
-        <td class="${returnRate >= 0 ? 'up' : 'down'}">${formatNumber(returnRate, 2)}%</td>
-      </tr>
-    `;
-  }).join("");
+  let cumulativeShares = 0;
+  let cumulativeBuyAmount = 0;
+  const summaryRows = years.map(year => {
+    const item = grouped[year];
+    cumulativeShares += item.yearShares;
+    cumulativeBuyAmount += item.yearBuyAmount;
+
+    const avgCost = cumulativeShares ? cumulativeBuyAmount / cumulativeShares : 0;
+    const marketValue = item.closingPrice * cumulativeShares;
+    const profit = marketValue - cumulativeBuyAmount;
+    const returnRate = cumulativeBuyAmount ? (profit / cumulativeBuyAmount) * 100 : 0;
+
+    return {
+      year,
+      yearShares: item.yearShares,
+      yearBuyAmount: item.yearBuyAmount,
+      cumulativeShares,
+      cumulativeBuyAmount,
+      closingPrice: item.closingPrice,
+      avgCost,
+      marketValue,
+      profit,
+      returnRate
+    };
+  }).sort((a, b) => b.year - a.year);
+
+  tbody.innerHTML = summaryRows.map(r => `
+    <tr>
+      <td>${r.year}</td>
+      <td>${formatNumber(r.yearShares, 0)}</td>
+      <td>${formatNumber(r.yearBuyAmount, 4)}</td>
+      <td>${formatNumber(r.cumulativeShares, 0)}</td>
+      <td>${formatNumber(r.cumulativeBuyAmount, 4)}</td>
+      <td>${formatNumber(r.closingPrice, 2)}</td>
+      <td>${formatNumber(r.avgCost, 4)}</td>
+      <td>${formatNumber(r.marketValue, 2)}</td>
+      <td class="${r.profit >= 0 ? 'up' : 'down'}">${formatNumber(r.profit, 2)}</td>
+      <td class="${r.returnRate >= 0 ? 'up' : 'down'}">${formatNumber(r.returnRate, 2)}%</td>
+    </tr>
+  `).join("");
 }
 
 function renderRaw(payload) {
   const tbody = document.getElementById("rawBody");
-  const rows = [...payload.rows].reverse();
+  const rows = [...(payload.rows || [])].reverse();
 
   tbody.innerHTML = rows.map(r => `
     <tr>
-      <td>${r.date}</td>
+      <td>${formatDateText(r.date)}</td>
       <td>${formatNumber(r.price, 4)}</td>
       <td>${formatNumber(r.totalShares, 0)}</td>
       <td>${formatNumber(r.buyAmount, 4)}</td>
