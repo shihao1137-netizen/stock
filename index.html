@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>股票總表</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#050505;
+      --panel:#111111;
+      --panel2:#0d0d0d;
+      --border:#242424;
+      --gold:#f7c75c;
+      --text:#ffffff;
+      --muted:#9a9a9a;
+      --green:#7ee787;
+      --red:#ff8d8d;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:20px;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC",sans-serif;
+      position:relative;
+      overflow-x:hidden;
+    }
+    body::before{
+      content:"tsmc";
+      position:fixed;
+      top:28px;
+      right:32px;
+      font-size:140px;
+      font-weight:900;
+      color:rgba(247,199,92,.07);
+      z-index:0;
+      pointer-events:none;
+      user-select:none;
+    }
+    .wrap{
+      position:relative;
+      z-index:1;
+      max-width:1480px;
+      margin:0 auto;
+    }
+    h1{
+      color:var(--gold);
+      margin:0 0 8px 0;
+      font-size:38px;
+    }
+    .subtitle{
+      color:#c7c7c7;
+      font-size:15px;
+      margin-bottom:18px;
+    }
+    .toolbar{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .btn{
+      background:linear-gradient(180deg,#252525 0%,#171717 100%);
+      color:var(--gold);
+      border:1px solid #3f3f3f;
+      padding:11px 16px;
+      border-radius:14px;
+      font-size:14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(8,minmax(0,1fr));
+      gap:12px;
+      margin-bottom:22px;
+    }
+    .card{
+      background:radial-gradient(circle at top left,rgba(247,199,92,.08),transparent 35%),linear-gradient(180deg,#131313 0%,#0c0c0c 100%);
+      border:1px solid var(--border);
+      border-radius:18px;
+      padding:16px;
+      min-height:112px;
+    }
+    .card h3{
+      margin:0 0 6px 0;
+      font-size:13px;
+      color:#d9d9d9;
+    }
+    .card .sub{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:10px;
+    }
+    .card .value{
+      font-size:22px;
+      line-height:1.15;
+      font-weight:900;
+      color:var(--gold);
+    }
+    .section{margin-top:24px}
+    .section h2{
+      color:var(--gold);
+      margin:0 0 10px 0;
+      font-size:22px;
+    }
+    .chart-box,.table-box{
+      background:linear-gradient(180deg,var(--panel) 0%,var(--panel2) 100%);
+      border:1px solid var(--border);
+      border-radius:18px;
+    }
+    .chart-box{padding:14px}
+    .chart-box canvas{
+      width:100%;
+      height:420px !important;
+    }
+    .two-col{
+      display:grid;
+      grid-template-columns:1.4fr 1fr;
+      gap:16px;
+    }
+    .table-box{overflow:auto}
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:auto;
+    }
+    th,td{
+      border:1px solid #222;
+      padding:8px 6px;
+      text-align:center;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    th{
+      color:var(--gold);
+      background:#111;
+      position:sticky;
+      top:0;
+      z-index:1;
+    }
+    td{color:#ededed}
+    .status{
+      margin-top:14px;
+      color:#b8b8b8;
+      font-size:13px;
+    }
+    .up{color:var(--green);font-weight:800}
+    .down{color:var(--red);font-weight:800}
+    @media (max-width:1400px){
+      .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+    }
+    @media (max-width:1000px){
+      .two-col{grid-template-columns:1fr}
+    }
+    @media (max-width:720px){
+      h1{font-size:30px}
+      .kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .chart-box canvas{height:320px !important;}
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>股票總表</h1>
+  <div class="subtitle">股票 RAW 即時讀取版</div>
+
+  <div class="toolbar">
+    <button class="btn" type="button" onclick="reloadData()">重新整理資料</button>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="card">
+      <h3>即時股價</h3>
+      <div class="sub">K2 / fallback 最新收盤</div>
+      <div class="value" id="kpiRealtimePrice">--</div>
+    </div>
+
+    <div class="card">
+      <h3>最新收盤價</h3>
+      <div class="sub" id="kpiLatestDate">--</div>
+      <div class="value" id="kpiLatestPrice">--</div>
+    </div>
+
+    <div class="card">
+      <h3>持股數量</h3>
+      <div class="sub">購買總股</div>
+      <div class="value" id="kpiShares">--</div>
+    </div>
+
+    <div class="card">
+      <h3>持股市值</h3>
+      <div class="sub">即時股價 × 股數</div>
+      <div class="value" id="kpiMarketValue">--</div>
+    </div>
+
+    <div class="card">
+      <h3>平均成本</h3>
+      <div class="sub">成本</div>
+      <div class="value" id="kpiCost">--</div>
+    </div>
+
+    <div class="card">
+      <h3>總成本</h3>
+      <div class="sub">買價總額</div>
+      <div class="value" id="kpiBuyAmount">--</div>
+    </div>
+
+    <div class="card">
+      <h3>未實現損益</h3>
+      <div class="sub">市值 - 總成本</div>
+      <div class="value" id="kpiProfit">--</div>
+    </div>
+
+    <div class="card">
+      <h3>報酬率</h3>
+      <div class="sub">未實現損益 / 總成本</div>
+      <div class="value" id="kpiReturnRate">--</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>TSMC 歷史股價</h2>
+    <div class="chart-box">
+      <canvas id="priceChart"></canvas>
+    </div>
+  </div>
+
+  <div class="section two-col">
+    <div>
+      <h2>成本 vs 股價</h2>
+      <div class="chart-box">
+        <canvas id="costChart"></canvas>
+      </div>
+    </div>
+    <div>
+      <h2>價差趨勢</h2>
+      <div class="chart-box">
+        <canvas id="diffChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>年度摘要</h2>
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th>年份</th>
+            <th>期末股價</th>
+            <th>期末股數</th>
+            <th>期末總成本</th>
+            <th>期末平均成本</th>
+            <th>期末市值</th>
+            <th>期末未實現損益</th>
+            <th>期末報酬率</th>
+          </tr>
+        </thead>
+        <tbody id="yearSummaryBody">
+          <tr><td colspan="8">載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>股票 RAW</h2>
+    <div class="table-box">
+      <table>
+        <thead>
+          <tr>
+            <th>日期</th>
+            <th>股價</th>
+            <th>購買總股</th>
+            <th>買價總額</th>
+            <th>現值價差</th>
+            <th>單股價差</th>
+            <th>成本</th>
+          </tr>
+        </thead>
+        <tbody id="rawBody">
+          <tr><td colspan="7">載入中...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="status" id="status">準備讀取資料...</div>
+</div>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbztF92liZgASEGEraPweEv37LcxjzRKglmvnhwklyLHEr-uTF_lQ2pGcGYllDkQHt8bjw/exec";
+
+let priceChart = null;
+let costChart = null;
+let diffChart = null;
+
+function formatNumber(n, digits = 0) {
+  return Number(n || 0).toLocaleString("zh-TW", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
+
+function setStatus(text) {
+  document.getElementById("status").innerText = text;
+}
+
+function animateValue(el, endValue, digits = 0, duration = 900) {
+  const clean = Number(endValue || 0);
+  const startTime = performance.now();
+
+  function step(now) {
+    const progress = Math.min((now - startTime) / duration, 1);
+    const value = clean * (1 - Math.pow(1 - progress, 3));
+    el.innerText = formatNumber(value, digits);
+    if (progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function destroyCharts() {
+  if (priceChart) priceChart.destroy();
+  if (costChart) costChart.destroy();
+  if (diffChart) diffChart.destroy();
+}
+
+function renderKPI(payload) {
+  const latest = payload.latest;
+  const realtimePrice = Number(payload.realtimePrice || 0);
+  const latestPrice = Number(latest?.price || 0);
+  const shares = Number(latest?.totalShares || 0);
+  const buyAmount = Number(latest?.buyAmount || 0);
+  const cost = Number(latest?.cost || 0);
+  const marketValue = realtimePrice * shares;
+  const profit = marketValue - buyAmount;
+  const returnRate = buyAmount ? (profit / buyAmount) * 100 : 0;
+
+  document.getElementById("kpiLatestDate").innerText = latest?.date || "--";
+
+  animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
+  animateValue(document.getElementById("kpiLatestPrice"), latestPrice, 2);
+  animateValue(document.getElementById("kpiShares"), shares, 0);
+  animateValue(document.getElementById("kpiMarketValue"), marketValue, 0);
+  animateValue(document.getElementById("kpiCost"), cost, 4);
+  animateValue(document.getElementById("kpiBuyAmount"), buyAmount, 4);
+  animateValue(document.getElementById("kpiProfit"), profit, 2);
+
+  const rr = document.getElementById("kpiReturnRate");
+  rr.className = "value " + (returnRate >= 0 ? "up" : "down");
+  rr.innerText = `${formatNumber(returnRate, 2)}%`;
+
+  const p = document.getElementById("kpiProfit");
+  p.className = "value " + (profit >= 0 ? "up" : "down");
+}
+
+function renderCharts(payload) {
+  const data = payload.rows;
+  const labels = data.map(x => x.date);
+  const prices = data.map(x => Number(x.price || 0));
+  const costs = data.map(x => Number(x.cost || 0));
+  const perShareDiff = data.map(x => Number(x.perShareDiff || 0));
+  const currentDiff = data.map(x => Number(x.currentDiff || 0));
+
+  priceChart = new Chart(document.getElementById("priceChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "price",
+        data: prices,
+        borderColor: "#4e79a7",
+        backgroundColor: "rgba(78,121,167,0.18)",
+        fill: true,
+        tension: 0.25,
+        pointRadius: 1.5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
+      scales: {
+        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
+        y: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } }
+      }
+    }
+  });
+
+  costChart = new Chart(document.getElementById("costChart"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "price",
+          data: prices,
+          borderColor: "#4e79a7",
+          backgroundColor: "rgba(78,121,167,0.12)",
+          tension: 0.25
+        },
+        {
+          label: "成本",
+          data: costs,
+          borderColor: "#e15759",
+          backgroundColor: "rgba(225,87,89,0.08)",
+          tension: 0.25
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
+      scales: {
+        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
+        y: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } }
+      }
+    }
+  });
+
+  diffChart = new Chart(document.getElementById("diffChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "現值價差",
+          data: currentDiff,
+          backgroundColor: "#f28e2b"
+        },
+        {
+          label: "單股價差",
+          data: perShareDiff,
+          backgroundColor: "#59a14f"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
+      scales: {
+        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
+        y: {
+          ticks: {
+            color: "#ddd",
+            callback: value => formatNumber(value, 0)
+          },
+          grid: { color: "#1f1f1f" }
+        }
+      }
+    }
+  });
+}
+
+function renderYearSummary(payload) {
+  const tbody = document.getElementById("yearSummaryBody");
+  const grouped = {};
+
+  payload.rows.forEach(r => {
+    const year = String(r.date).slice(0, 4);
+    grouped[year] = r; // 每年最後一筆覆蓋，保留年末狀態
+  });
+
+  const years = Object.keys(grouped).sort((a, b) => Number(b) - Number(a));
+  tbody.innerHTML = years.map(year => {
+    const r = grouped[year];
+    const price = Number(r.price || 0);
+    const shares = Number(r.totalShares || 0);
+    const buyAmount = Number(r.buyAmount || 0);
+    const cost = Number(r.cost || 0);
+    const marketValue = price * shares;
+    const profit = marketValue - buyAmount;
+    const returnRate = buyAmount ? (profit / buyAmount) * 100 : 0;
+
+    return `
+      <tr>
+        <td class="row-head">${year}</td>
+        <td>${formatNumber(price, 2)}</td>
+        <td>${formatNumber(shares, 0)}</td>
+        <td>${formatNumber(buyAmount, 4)}</td>
+        <td>${formatNumber(cost, 4)}</td>
+        <td>${formatNumber(marketValue, 2)}</td>
+        <td class="${profit >= 0 ? 'up' : 'down'}">${formatNumber(profit, 2)}</td>
+        <td class="${returnRate >= 0 ? 'up' : 'down'}">${formatNumber(returnRate, 2)}%</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderRaw(payload) {
+  const tbody = document.getElementById("rawBody");
+  const rows = [...payload.rows].reverse();
+
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${formatNumber(r.price, 4)}</td>
+      <td>${formatNumber(r.totalShares, 0)}</td>
+      <td>${formatNumber(r.buyAmount, 4)}</td>
+      <td class="${Number(r.currentDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.currentDiff, 4)}</td>
+      <td class="${Number(r.perShareDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.perShareDiff, 4)}</td>
+      <td>${formatNumber(r.cost, 4)}</td>
+    </tr>
+  `).join("");
+}
+
+function processData(payload) {
+  if (payload.error) {
+    setStatus(payload.error);
+    alert(payload.error);
+    return;
+  }
+
+  if (!payload.rows || !payload.rows.length) {
+    setStatus("沒有資料");
+    return;
+  }
+
+  destroyCharts();
+  renderKPI(payload);
+  renderCharts(payload);
+  renderYearSummary(payload);
+  renderRaw(payload);
+  setStatus(`資料更新完成：${new Date().toLocaleString("zh-TW")}`);
+}
+
+window.handleStockData = function(payload) {
+  processData(payload);
+};
+
+function reloadData() {
+  loadData();
+}
+
+function loadData() {
+  setStatus("資料讀取中...");
+  const old = document.getElementById("jsonp-loader");
+  if (old) old.remove();
+
+  const s = document.createElement("script");
+  s.id = "jsonp-loader";
+  s.src = `${API_URL}?callback=handleStockData&t=${Date.now()}`;
+  s.onerror = function() {
+    setStatus("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
+    alert("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
+  };
+  document.body.appendChild(s);
+}
+
+loadData();
+</script>
+</body>
+</html>
