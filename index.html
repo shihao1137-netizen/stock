@@ -89,7 +89,7 @@
     }
     .kpi-grid{
       display:grid;
-      grid-template-columns:repeat(8,minmax(0,1fr));
+      grid-template-columns:repeat(7,minmax(0,1fr));
       gap:12px;
       margin-bottom:22px;
     }
@@ -166,8 +166,8 @@
       color:#b8b8b8;
       font-size:13px;
     }
-    .up{color:var(--green);font-weight:800}
-    .down{color:var(--red);font-weight:800}
+    .up{color:var(--green)!important;font-weight:800}
+    .down{color:var(--red)!important;font-weight:800}
     @media (max-width:1400px){
       .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
     }
@@ -193,14 +193,8 @@
   <div class="kpi-grid">
     <div class="card">
       <h3>即時股價</h3>
-      <div class="sub">K2 / fallback 最新收盤</div>
-      <div class="value" id="kpiRealtimePrice">--</div>
-    </div>
-
-    <div class="card">
-      <h3>最新收盤價</h3>
       <div class="sub" id="kpiLatestDate">--</div>
-      <div class="value" id="kpiLatestPrice">--</div>
+      <div class="value" id="kpiRealtimePrice">--</div>
     </div>
 
     <div class="card">
@@ -273,11 +267,11 @@
             <th>當年買入成本</th>
             <th>年底累積股數</th>
             <th>年底累積總成本</th>
-            <th>年底收盤價</th>
+            <th>即時股價</th>
             <th>年底平均成本</th>
-            <th>年底市值</th>
-            <th>年底未實現損益</th>
-            <th>年底報酬率</th>
+            <th>即時市值</th>
+            <th>未實現損益</th>
+            <th>報酬率</th>
           </tr>
         </thead>
         <tbody id="yearSummaryBody">
@@ -381,14 +375,11 @@ function renderKPI(payload) {
   const rows = payload.rows || [];
   const latest = payload.latest;
   const realtimePrice = Number(payload.realtimePrice || 0);
-  const latestPrice = Number(latest?.price || 0);
-
   const metrics = getPortfolioMetrics(rows, realtimePrice);
 
-  document.getElementById("kpiLatestDate").innerText = formatDateText(latest?.date);
+  document.getElementById("kpiLatestDate").innerText = `最新資料日 ${formatDateText(latest?.date)}`;
 
   animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
-  animateValue(document.getElementById("kpiLatestPrice"), latestPrice, 2);
   animateValue(document.getElementById("kpiShares"), metrics.totalShares, 0);
   animateValue(document.getElementById("kpiMarketValue"), metrics.marketValue, 0);
   animateValue(document.getElementById("kpiCost"), metrics.avgCost, 4);
@@ -512,6 +503,7 @@ function renderCharts(payload) {
 function renderYearSummary(payload) {
   const tbody = document.getElementById("yearSummaryBody");
   const rows = payload.rows || [];
+  const realtimePrice = Number(payload.realtimePrice || 0);
   const grouped = {};
 
   rows.forEach(r => {
@@ -520,26 +512,25 @@ function renderYearSummary(payload) {
       grouped[year] = {
         year,
         yearShares: 0,
-        yearBuyAmount: 0,
-        closingPrice: 0
+        yearBuyAmount: 0
       };
     }
     grouped[year].yearShares += Number(r.totalShares || 0);
     grouped[year].yearBuyAmount += Number(r.buyAmount || 0);
-    grouped[year].closingPrice = Number(r.price || 0);
   });
 
   const years = Object.keys(grouped).map(Number).sort((a, b) => a - b);
 
   let cumulativeShares = 0;
   let cumulativeBuyAmount = 0;
+
   const summaryRows = years.map(year => {
     const item = grouped[year];
     cumulativeShares += item.yearShares;
     cumulativeBuyAmount += item.yearBuyAmount;
 
     const avgCost = cumulativeShares ? cumulativeBuyAmount / cumulativeShares : 0;
-    const marketValue = item.closingPrice * cumulativeShares;
+    const marketValue = realtimePrice * cumulativeShares;
     const profit = marketValue - cumulativeBuyAmount;
     const returnRate = cumulativeBuyAmount ? (profit / cumulativeBuyAmount) * 100 : 0;
 
@@ -549,7 +540,6 @@ function renderYearSummary(payload) {
       yearBuyAmount: item.yearBuyAmount,
       cumulativeShares,
       cumulativeBuyAmount,
-      closingPrice: item.closingPrice,
       avgCost,
       marketValue,
       profit,
@@ -564,7 +554,7 @@ function renderYearSummary(payload) {
       <td>${formatNumber(r.yearBuyAmount, 4)}</td>
       <td>${formatNumber(r.cumulativeShares, 0)}</td>
       <td>${formatNumber(r.cumulativeBuyAmount, 4)}</td>
-      <td>${formatNumber(r.closingPrice, 2)}</td>
+      <td>${formatNumber(realtimePrice, 2)}</td>
       <td>${formatNumber(r.avgCost, 4)}</td>
       <td>${formatNumber(r.marketValue, 2)}</td>
       <td class="${r.profit >= 0 ? 'up' : 'down'}">${formatNumber(r.profit, 2)}</td>
