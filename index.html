@@ -193,7 +193,7 @@
   <div class="kpi-grid">
     <div class="card">
       <h3>即時股價</h3>
-      <div class="sub" id="kpiLatestDate">--</div>
+      <div class="sub" id="kpiLatestDate">最新資料日 --</div>
       <div class="value" id="kpiRealtimePrice">--</div>
     </div>
 
@@ -371,13 +371,30 @@ function getPortfolioMetrics(rows, realtimePrice) {
   };
 }
 
+function getDailyPriceSeries(payload) {
+  const daily = Array.isArray(payload.dailyPrices) ? payload.dailyPrices : [];
+  if (daily.length) {
+    return daily
+      .filter(x => x && x.date !== undefined && x.price !== undefined)
+      .map(x => ({
+        date: formatDateText(x.date),
+        price: Number(x.price || 0)
+      }));
+  }
+
+  return (payload.rows || []).map(x => ({
+    date: formatDateText(x.date),
+    price: Number(x.price || 0)
+  }));
+}
+
 function renderKPI(payload) {
   const rows = payload.rows || [];
-  const latest = payload.latest;
+  const latest = payload.latest || {};
   const realtimePrice = Number(payload.realtimePrice || 0);
   const metrics = getPortfolioMetrics(rows, realtimePrice);
 
-  document.getElementById("kpiLatestDate").innerText = `最新資料日 ${formatDateText(latest?.date)}`;
+  document.getElementById("kpiLatestDate").innerText = `最新資料日 ${formatDateText(latest.date)}`;
 
   animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
   animateValue(document.getElementById("kpiShares"), metrics.totalShares, 0);
@@ -395,25 +412,29 @@ function renderKPI(payload) {
 }
 
 function renderCharts(payload) {
-  const data = payload.rows || [];
-  const labels = data.map(x => formatDateText(x.date));
-  const prices = data.map(x => Number(x.price || 0));
-  const costs = data.map(x => Number(x.cost || 0));
-  const perShareDiff = data.map(x => Number(x.perShareDiff || 0));
-  const currentDiff = data.map(x => Number(x.currentDiff || 0));
+  const rows = payload.rows || [];
+  const dailySeries = getDailyPriceSeries(payload);
+
+  const priceLabels = dailySeries.map(x => x.date);
+  const priceValues = dailySeries.map(x => x.price);
+
+  const tradeLabels = rows.map(x => formatDateText(x.date));
+  const costValues = rows.map(x => Number(x.buyAmount || 0));
+  const perShareDiff = rows.map(x => Number(x.perShareDiff || 0));
+  const currentDiff = rows.map(x => Number(x.currentDiff || 0));
 
   priceChart = new Chart(document.getElementById("priceChart"), {
     type: "line",
     data: {
-      labels,
+      labels: priceLabels,
       datasets: [{
-        label: "price",
-        data: prices,
+        label: "每日股價",
+        data: priceValues,
         borderColor: "#4e79a7",
         backgroundColor: "rgba(78,121,167,0.18)",
         fill: true,
-        tension: 0.25,
-        pointRadius: 1.5
+        tension: 0.2,
+        pointRadius: 0
       }]
     },
     options: {
@@ -423,30 +444,41 @@ function renderCharts(payload) {
         legend: { labels: { color: "#fff" } }
       },
       scales: {
-        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
-        y: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } }
+        x: {
+          ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
+          grid: { color: "#1f1f1f" }
+        },
+        y: {
+          ticks: { color: "#ddd" },
+          grid: { color: "#1f1f1f" }
+        }
       }
     }
   });
 
   costChart = new Chart(document.getElementById("costChart"), {
-    type: "line",
     data: {
-      labels,
+      labels: tradeLabels,
       datasets: [
         {
-          label: "price",
-          data: prices,
+          type: "line",
+          label: "股價",
+          data: rows.map(x => Number(x.price || 0)),
           borderColor: "#4e79a7",
-          backgroundColor: "rgba(78,121,167,0.12)",
-          tension: 0.25
+          backgroundColor: "rgba(78,121,167,0.08)",
+          tension: 0.2,
+          yAxisID: "yPrice",
+          pointRadius: 2
         },
         {
+          type: "line",
           label: "成本",
-          data: costs,
+          data: costValues,
           borderColor: "#e15759",
           backgroundColor: "rgba(225,87,89,0.08)",
-          tension: 0.25
+          tension: 0.2,
+          yAxisID: "yCost",
+          pointRadius: 2
         }
       ]
     },
@@ -457,8 +489,25 @@ function renderCharts(payload) {
         legend: { labels: { color: "#fff" } }
       },
       scales: {
-        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
-        y: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } }
+        x: {
+          ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
+          grid: { color: "#1f1f1f" }
+        },
+        yPrice: {
+          type: "linear",
+          position: "left",
+          ticks: { color: "#8fb9ff" },
+          grid: { color: "#1f1f1f" }
+        },
+        yCost: {
+          type: "linear",
+          position: "right",
+          ticks: {
+            color: "#ff8d8d",
+            callback: value => formatNumber(value, 0)
+          },
+          grid: { drawOnChartArea: false }
+        }
       }
     }
   });
@@ -466,7 +515,7 @@ function renderCharts(payload) {
   diffChart = new Chart(document.getElementById("diffChart"), {
     type: "bar",
     data: {
-      labels,
+      labels: tradeLabels,
       datasets: [
         {
           label: "現值價差",
@@ -487,7 +536,10 @@ function renderCharts(payload) {
         legend: { labels: { color: "#fff" } }
       },
       scales: {
-        x: { ticks: { color: "#ddd" }, grid: { color: "#1f1f1f" } },
+        x: {
+          ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
+          grid: { color: "#1f1f1f" }
+        },
         y: {
           ticks: {
             color: "#ddd",
@@ -557,8 +609,8 @@ function renderYearSummary(payload) {
       <td>${formatNumber(realtimePrice, 2)}</td>
       <td>${formatNumber(r.avgCost, 4)}</td>
       <td>${formatNumber(r.marketValue, 2)}</td>
-      <td class="${r.profit >= 0 ? 'up' : 'down'}">${formatNumber(r.profit, 2)}</td>
-      <td class="${r.returnRate >= 0 ? 'up' : 'down'}">${formatNumber(r.returnRate, 2)}%</td>
+      <td class="${r.profit >= 0 ? "up" : "down"}">${formatNumber(r.profit, 2)}</td>
+      <td class="${r.returnRate >= 0 ? "up" : "down"}">${formatNumber(r.returnRate, 2)}%</td>
     </tr>
   `).join("");
 }
@@ -573,8 +625,8 @@ function renderRaw(payload) {
       <td>${formatNumber(r.price, 4)}</td>
       <td>${formatNumber(r.totalShares, 0)}</td>
       <td>${formatNumber(r.buyAmount, 4)}</td>
-      <td class="${Number(r.currentDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.currentDiff, 4)}</td>
-      <td class="${Number(r.perShareDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.perShareDiff, 4)}</td>
+      <td class="${Number(r.currentDiff) >= 0 ? "up" : "down"}">${formatNumber(r.currentDiff, 4)}</td>
+      <td class="${Number(r.perShareDiff) >= 0 ? "up" : "down"}">${formatNumber(r.perShareDiff, 4)}</td>
       <td>${formatNumber(r.cost, 4)}</td>
     </tr>
   `).join("");
