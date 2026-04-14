@@ -371,71 +371,168 @@ function getPortfolioMetrics(rows, realtimePrice) {
   };
 }
 
-function getDailyPriceSeries(payload) {
-  const daily = Array.isArray(payload.dailyPrices) ? payload.dailyPrices : [];
-  if (daily.length) {
-    return daily
-      .filter(x => x && x.date !== undefined && x.price !== undefined)
-      .map(x => ({
-        date: formatDateText(x.date),
-        price: Number(x.price || 0)
-      }));
-  }
-
-  return (payload.rows || []).map(x => ({
-    date: formatDateText(x.date),
-    price: Number(x.price || 0)
-  }));
-}
-
-function renderKPI(payload) {
-  const rows = payload.rows || [];
-  const latest = payload.latest || {};
-  const realtimePrice = Number(payload.realtimePrice || 0);
-  const metrics = getPortfolioMetrics(rows, realtimePrice);
-
-  document.getElementById("kpiLatestDate").innerText = `最新資料日 ${formatDateText(latest.date)}`;
-
-  animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
-  animateValue(document.getElementById("kpiShares"), metrics.totalShares, 0);
-  animateValue(document.getElementById("kpiMarketValue"), metrics.marketValue, 0);
-  animateValue(document.getElementById("kpiCost"), metrics.avgCost, 4);
-  animateValue(document.getElementById("kpiBuyAmount"), metrics.totalBuyAmount, 4);
-  animateValue(document.getElementById("kpiProfit"), metrics.profit, 2);
-
-  const p = document.getElementById("kpiProfit");
-  p.className = "value " + (metrics.profit >= 0 ? "up" : "down");
-
-  const rr = document.getElementById("kpiReturnRate");
-  rr.className = "value " + (metrics.returnRate >= 0 ? "up" : "down");
-  rr.innerText = `${formatNumber(metrics.returnRate, 2)}%`;
-}
-
 function renderCharts(payload) {
   const rows = payload.rows || [];
-  const dailySeries = getDailyPriceSeries(payload);
+  const dailySeries = Array.isArray(payload.dailyPrices) ? payload.dailyPrices : [];
+  const buyAmountSeries = Array.isArray(payload.buyAmountSeries) ? payload.buyAmountSeries : [];
 
-  const priceLabels = dailySeries.map(x => x.date);
-  const priceValues = dailySeries.map(x => x.price);
+  const labels = dailySeries.length
+    ? dailySeries.map(x => formatDateText(x.date))
+    : rows.map(x => formatDateText(x.date));
 
+  const priceValues = dailySeries.length
+    ? dailySeries.map(x => Number(x.price || 0))
+    : rows.map(x => Number(x.price || 0));
+
+  const buyAmountValues = buyAmountSeries.length
+    ? buyAmountSeries.map(x => Number(x.buyAmount || 0))
+    : rows.map(x => Number(x.buyAmount || 0));
+
+  const costValues = rows.map(x => Number(x.cost || 0));
   const tradeLabels = rows.map(x => formatDateText(x.date));
-  const costValues = rows.map(x => Number(x.buyAmount || 0));
   const perShareDiff = rows.map(x => Number(x.perShareDiff || 0));
   const currentDiff = rows.map(x => Number(x.currentDiff || 0));
 
+  // 1. 歷史股價：每日股價 + 當日買入金額（雙折線、雙Y軸）
   priceChart = new Chart(document.getElementById("priceChart"), {
-    type: "line",
     data: {
-      labels: priceLabels,
-      datasets: [{
-        label: "每日股價",
-        data: priceValues,
-        borderColor: "#4e79a7",
-        backgroundColor: "rgba(78,121,167,0.18)",
-        fill: true,
-        tension: 0.2,
-        pointRadius: 0
-      }]
+      labels,
+      datasets: [
+        {
+          type: "line",
+          label: "每日股價",
+          data: priceValues,
+          borderColor: "#4e79a7",
+          backgroundColor: "rgba(78,121,167,0.15)",
+          fill: true,
+          tension: 0.15,
+          pointRadius: 0,
+          yAxisID: "yPrice"
+        },
+        {
+          type: "line",
+          label: "當日買入金額",
+          data: buyAmountValues,
+          borderColor: "#f28e2b",
+          backgroundColor: "rgba(242,142,43,0.15)",
+          tension: 0,
+          pointRadius: 3,
+          spanGaps: true,
+          yAxisID: "yBuy"
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#fff" } },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return `${context.dataset.label}: ${formatNumber(context.raw, 2)}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
+          grid: { color: "#1f1f1f" }
+        },
+        yPrice: {
+          type: "linear",
+          position: "left",
+          ticks: { color: "#8fb9ff" },
+          grid: { color: "#1f1f1f" }
+        },
+        yBuy: {
+          type: "linear",
+          position: "right",
+          ticks: {
+            color: "#ffbe6b",
+            callback: value => formatNumber(value, 0)
+          },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+
+  // 2. 成本 vs 股價：雙Y軸
+  costChart = new Chart(document.getElementById("costChart"), {
+    data: {
+      labels: tradeLabels,
+      datasets: [
+        {
+          type: "line",
+          label: "股價",
+          data: rows.map(x => Number(x.price || 0)),
+          borderColor: "#4e79a7",
+          backgroundColor: "rgba(78,121,167,0.08)",
+          tension: 0.2,
+          yAxisID: "yPrice",
+          pointRadius: 2
+        },
+        {
+          type: "line",
+          label: "成本",
+          data: costValues,
+          borderColor: "#e15759",
+          backgroundColor: "rgba(225,87,89,0.08)",
+          tension: 0.2,
+          yAxisID: "yCost",
+          pointRadius: 2
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#fff" } }
+      },
+      scales: {
+        x: {
+          ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
+          grid: { color: "#1f1f1f" }
+        },
+        yPrice: {
+          type: "linear",
+          position: "left",
+          ticks: { color: "#8fb9ff" },
+          grid: { color: "#1f1f1f" }
+        },
+        yCost: {
+          type: "linear",
+          position: "right",
+          ticks: {
+            color: "#ff8d8d",
+            callback: value => formatNumber(value, 0)
+          },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+
+  // 3. 價差趨勢
+  diffChart = new Chart(document.getElementById("diffChart"), {
+    type: "bar",
+    data: {
+      labels: tradeLabels,
+      datasets: [
+        {
+          label: "現值價差",
+          data: currentDiff,
+          backgroundColor: "#f28e2b"
+        },
+        {
+          label: "單股價差",
+          data: perShareDiff,
+          backgroundColor: "#59a14f"
+        }
+      ]
     },
     options: {
       responsive: true,
@@ -449,13 +546,16 @@ function renderCharts(payload) {
           grid: { color: "#1f1f1f" }
         },
         y: {
-          ticks: { color: "#ddd" },
+          ticks: {
+            color: "#ddd",
+            callback: value => formatNumber(value, 0)
+          },
           grid: { color: "#1f1f1f" }
         }
       }
     }
   });
-
+}
   costChart = new Chart(document.getElementById("costChart"), {
     data: {
       labels: tradeLabels,
