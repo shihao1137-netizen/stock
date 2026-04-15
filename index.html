@@ -244,7 +244,7 @@
     <div class="chart-box">
       <canvas id="priceChart"></canvas>
     </div>
-    <div class="hint">藍線為每日股價；橘線為當日有買入時的買入金額。左軸為股價，右軸為買入金額。</div>
+    <div class="hint">藍線為每日股價；橘線為當日有買入時的買入單價。</div>
   </div>
 
   <div class="section two-col">
@@ -420,14 +420,14 @@ function renderKPI(payload) {
 function renderCharts(payload) {
   const rows = payload.rows || [];
   const dailySeries = getDailyPriceSeries(payload);
-  const buyAmountSeries = Array.isArray(payload.buyAmountSeries) ? payload.buyAmountSeries : [];
+  const buyPriceSeries = Array.isArray(payload.buyPriceSeries) ? payload.buyPriceSeries : [];
 
   const historyLabels = dailySeries.map(x => x.date);
   const historyPrices = dailySeries.map(x => Number(x.price || 0));
 
-  const historyBuyAmounts = buyAmountSeries.length
-    ? buyAmountSeries.map(x => {
-        const v = Number(x.buyAmount || 0);
+  const historyBuyPrices = buyPriceSeries.length
+    ? buyPriceSeries.map(x => {
+        const v = Number(x.buyPrice || 0);
         return v === 0 ? null : v;
       })
     : historyLabels.map(() => null);
@@ -438,33 +438,31 @@ function renderCharts(payload) {
   const currentDiff = rows.map(x => Number(x.currentDiff || 0));
   const perShareDiff = rows.map(x => Number(x.perShareDiff || 0));
 
+  // 1. 歷史股價：每日股價 + 當日買入單價（單Y軸）
   priceChart = new Chart(document.getElementById("priceChart"), {
+    type: "line",
     data: {
       labels: historyLabels,
       datasets: [
         {
-          type: "line",
           label: "每日股價",
           data: historyPrices,
           borderColor: "#4e79a7",
           backgroundColor: "rgba(78,121,167,0.16)",
-          fill: true,
+          fill: false,
           tension: 0.15,
-          pointRadius: 0,
-          yAxisID: "yPrice"
+          pointRadius: 0
         },
         {
-          type: "line",
-          label: "當日買入金額",
-          data: historyBuyAmounts,
+          label: "當日買入單價",
+          data: historyBuyPrices,
           borderColor: "#f28e2b",
           backgroundColor: "rgba(242,142,43,0.08)",
           fill: false,
           tension: 0,
-          pointRadius: 3,
-          pointHoverRadius: 5,
-          spanGaps: false,
-          yAxisID: "yBuy"
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          spanGaps: false
         }
       ]
     },
@@ -476,7 +474,7 @@ function renderCharts(payload) {
         tooltip: {
           callbacks: {
             label: function(context) {
-              return `${context.dataset.label}: ${formatNumber(context.raw, 2)}`;
+              return `${context.dataset.label}: ${formatNumber(context.raw, 4)}`;
             }
           }
         }
@@ -486,25 +484,18 @@ function renderCharts(payload) {
           ticks: { color: "#ddd", maxRotation: 50, minRotation: 50 },
           grid: { color: "#1f1f1f" }
         },
-        yPrice: {
-          type: "linear",
-          position: "left",
-          ticks: { color: "#8fb9ff" },
-          grid: { color: "#1f1f1f" }
-        },
-        yBuy: {
-          type: "linear",
-          position: "right",
+        y: {
           ticks: {
-            color: "#ffbe6b",
+            color: "#ddd",
             callback: value => formatNumber(value, 0)
           },
-          grid: { drawOnChartArea: false }
+          grid: { color: "#1f1f1f" }
         }
       }
     }
   });
 
+  // 2. 成本 vs 股價：雙Y軸
   costChart = new Chart(document.getElementById("costChart"), {
     data: {
       labels: tradeLabels,
@@ -561,6 +552,7 @@ function renderCharts(payload) {
     }
   });
 
+  // 3. 價差趨勢
   diffChart = new Chart(document.getElementById("diffChart"), {
     type: "bar",
     data: {
