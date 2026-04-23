@@ -189,7 +189,7 @@
 <body>
 <div class="wrap">
   <h1>股票總表</h1>
-  <div class="subtitle">股票 RAW + TSMC 股價 即時讀取版</div>
+  <div class="subtitle">獨立 StockAPI 即時讀取版</div>
 
   <div class="toolbar">
     <button class="btn" type="button" onclick="reloadData()">重新整理資料</button>
@@ -198,13 +198,13 @@
   <div class="kpi-grid">
     <div class="card">
       <h3>即時股價</h3>
-      <div class="sub" id="kpiLatestDate">最新資料日 --</div>
+      <div class="sub" id="kpiLatestDate">最新收盤日 --</div>
       <div class="value" id="kpiRealtimePrice">--</div>
     </div>
 
     <div class="card">
       <h3>持股數量</h3>
-      <div class="sub">E 欄總和</div>
+      <div class="sub">目前總持股</div>
       <div class="value" id="kpiShares">--</div>
     </div>
 
@@ -295,15 +295,18 @@
           <tr>
             <th>日期</th>
             <th>股價</th>
+            <th>公</th>
+            <th>自</th>
             <th>購買總股</th>
             <th>買價總額</th>
             <th>現值價差</th>
             <th>單股價差</th>
             <th>成本</th>
+            <th>備註</th>
           </tr>
         </thead>
         <tbody id="rawBody">
-          <tr><td colspan="7">載入中...</td></tr>
+          <tr><td colspan="10">載入中...</td></tr>
         </tbody>
       </table>
     </div>
@@ -313,7 +316,7 @@
 </div>
 
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbxNr5Cp3gcBPUhTuxpfTBSHxjvxbVArVrQmIfHfH2i8GereVr9zsKp3ZMAxJp3kRaBL/exec";
+const API_URL = "https://script.googleusercontent.com/macros/echo?user_content_key=AWDtjMUypPPSI5SgoKT278hfssOpEjep4GGfS-KmATtsWugVXxTaTTdxyFALtK-yxWGqsKOLiTiTvIqyBgU-l4TFAVaCEppijYUokIrbRprvfO1w0MnoEMPGUAf37Y-nQtciUup2yIEeTJBltz0ex2hmSMG4Lw8qWtQnpcCjPcRjQvBy16qWodu5FeulfoLqSP0I2DC-X1H4GWUiqccXe_KcUYGdm2a56KSa0yEOF3_Bkoeeo2O2UTrrzM0G-t-sop6UpRI0HSvl5B0Ysdvr8dnSysovNmqp9g&lib=Mblzj0BtLjppQ7AH7rcTsL1Ypieynu80U";
 
 let priceChart = null;
 let costChart = null;
@@ -359,86 +362,57 @@ function destroyCharts() {
   if (diffChart) diffChart.destroy();
 }
 
-function getPortfolioMetrics(rows, realtimePrice) {
-  const totalShares = rows.reduce((sum, r) => sum + Number(r.totalShares || 0), 0);
-  const totalBuyAmount = rows.reduce((sum, r) => sum + Number(r.buyAmount || 0), 0);
-  const avgCost = totalShares ? totalBuyAmount / totalShares : 0;
-  const marketValue = realtimePrice * totalShares;
-  const profit = marketValue - totalBuyAmount;
-  const returnRate = totalBuyAmount ? (profit / totalBuyAmount) * 100 : 0;
-
-  return {
-    totalShares,
-    totalBuyAmount,
-    avgCost,
-    marketValue,
-    profit,
-    returnRate
-  };
-}
-
-function getDailyPriceSeries(payload) {
-  const daily = Array.isArray(payload.dailyPrices) ? payload.dailyPrices : [];
-  if (daily.length) {
-    return daily
-      .filter(x => x && x.date !== undefined && x.price !== undefined)
-      .map(x => ({
-        date: formatDateText(x.date),
-        price: Number(x.price || 0)
-      }));
-  }
-
-  return (payload.rows || []).map(x => ({
-    date: formatDateText(x.date),
-    price: Number(x.price || 0)
-  }));
+function buildFallbackBuyPriceMap(rawRows) {
+  const map = {};
+  (rawRows || []).forEach(r => {
+    const key = formatDateText(r.date);
+    map[key] = Number(r.price || 0);
+  });
+  return map;
 }
 
 function renderKPI(payload) {
-  const rows = payload.rows || [];
-  const latest = payload.latest || {};
+  const summary = payload.summary || {};
   const realtimePrice = Number(payload.realtimePrice || 0);
-  const metrics = getPortfolioMetrics(rows, realtimePrice);
+  const latestCloseDate = payload.latestCloseDate || "";
 
-  document.getElementById("kpiLatestDate").innerText = `最新資料日 ${formatDateText(latest.date)}`;
+  document.getElementById("kpiLatestDate").innerText = `最新收盤日 ${formatDateText(latestCloseDate)}`;
 
   animateValue(document.getElementById("kpiRealtimePrice"), realtimePrice, 2);
-  animateValue(document.getElementById("kpiShares"), metrics.totalShares, 0);
-  animateValue(document.getElementById("kpiMarketValue"), metrics.marketValue, 0);
-  animateValue(document.getElementById("kpiCost"), metrics.avgCost, 4);
-  animateValue(document.getElementById("kpiBuyAmount"), metrics.totalBuyAmount, 4);
-  animateValue(document.getElementById("kpiProfit"), metrics.profit, 2);
+  animateValue(document.getElementById("kpiShares"), summary.totalShares, 0);
+  animateValue(document.getElementById("kpiMarketValue"), summary.marketValue, 0);
+  animateValue(document.getElementById("kpiCost"), summary.averageCost, 4);
+  animateValue(document.getElementById("kpiBuyAmount"), summary.totalCost, 4);
+  animateValue(document.getElementById("kpiProfit"), summary.unrealizedGain, 2);
 
   const p = document.getElementById("kpiProfit");
-  p.className = "value " + (metrics.profit >= 0 ? "up" : "down");
+  p.className = "value " + (Number(summary.unrealizedGain || 0) >= 0 ? "up" : "down");
 
+  const returnRatePct = Number(summary.returnRate || 0) * 100;
   const rr = document.getElementById("kpiReturnRate");
-  rr.className = "value " + (metrics.returnRate >= 0 ? "up" : "down");
-  rr.innerText = `${formatNumber(metrics.returnRate, 2)}%`;
+  rr.className = "value " + (returnRatePct >= 0 ? "up" : "down");
+  rr.innerText = `${formatNumber(returnRatePct, 2)}%`;
 }
 
 function renderCharts(payload) {
-  const rows = payload.rows || [];
-  const dailySeries = getDailyPriceSeries(payload);
-  const buyPriceSeries = Array.isArray(payload.buyPriceSeries) ? payload.buyPriceSeries : [];
+  const rawRows = payload.rawRows || [];
+  const priceRows = payload.priceRows || [];
+  const fallbackBuyPriceMap = buildFallbackBuyPriceMap(rawRows);
 
-  const historyLabels = dailySeries.map(x => x.date);
-  const historyPrices = dailySeries.map(x => Number(x.price || 0));
+  const historyLabels = priceRows.map(x => formatDateText(x.date));
+  const historyPrices = priceRows.map(x => Number(x.close || 0));
+  const historyBuyPrices = priceRows.map(x => {
+    const dateKey = formatDateText(x.date);
+    const v = Number(x.buyPrice || fallbackBuyPriceMap[dateKey] || 0);
+    return v === 0 ? null : v;
+  });
 
-  const historyBuyPrices = buyPriceSeries.length
-    ? buyPriceSeries.map(x => {
-        const v = Number(x.buyPrice || 0);
-        return v === 0 ? null : v;
-      })
-    : historyLabels.map(() => null);
+  const tradeLabels = rawRows.map(x => formatDateText(x.date));
+  const tradePrices = rawRows.map(x => Number(x.price || 0));
+  const tradeCosts = rawRows.map(x => Number(x.cost || 0));
+  const currentDiff = rawRows.map(x => Number(x.currentDiff || 0));
+  const perShareDiff = rawRows.map(x => Number(x.perShareDiff || 0));
 
-  const tradeLabels = rows.map(x => formatDateText(x.date));
-  const tradePrices = rows.map(x => Number(x.price || 0));
-  const tradeCosts = rows.map(x => Number(x.cost || 0));
-  const currentDiff = rows.map(x => Number(x.currentDiff || 0));
-  const perShareDiff = rows.map(x => Number(x.perShareDiff || 0));
-
-  // 1. 歷史股價：每日股價 + 當日買入單價（單Y軸）
   priceChart = new Chart(document.getElementById("priceChart"), {
     type: "line",
     data: {
@@ -495,7 +469,6 @@ function renderCharts(payload) {
     }
   });
 
-  // 2. 成本 vs 股價：雙Y軸
   costChart = new Chart(document.getElementById("costChart"), {
     data: {
       labels: tradeLabels,
@@ -552,7 +525,6 @@ function renderCharts(payload) {
     }
   });
 
-  // 3. 價差趨勢
   diffChart = new Chart(document.getElementById("diffChart"), {
     type: "bar",
     data: {
@@ -595,11 +567,11 @@ function renderCharts(payload) {
 
 function renderYearSummary(payload) {
   const tbody = document.getElementById("yearSummaryBody");
-  const rows = payload.rows || [];
+  const rawRows = payload.rawRows || [];
   const realtimePrice = Number(payload.realtimePrice || 0);
-  const grouped = {};
 
-  rows.forEach(r => {
+  const grouped = {};
+  rawRows.forEach(r => {
     const year = new Date(r.date).getFullYear();
     if (!grouped[year]) {
       grouped[year] = {
@@ -658,30 +630,34 @@ function renderYearSummary(payload) {
 
 function renderRaw(payload) {
   const tbody = document.getElementById("rawBody");
-  const rows = [...(payload.rows || [])].reverse();
+  const rows = [...(payload.rawRows || [])].reverse();
 
   tbody.innerHTML = rows.map(r => `
     <tr>
       <td>${formatDateText(r.date)}</td>
       <td>${formatNumber(r.price, 4)}</td>
+      <td>${formatNumber(r.publicShares, 0)}</td>
+      <td>${formatNumber(r.privateShares, 0)}</td>
       <td>${formatNumber(r.totalShares, 0)}</td>
       <td>${formatNumber(r.buyAmount, 4)}</td>
       <td class="${Number(r.currentDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.currentDiff, 4)}</td>
       <td class="${Number(r.perShareDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.perShareDiff, 4)}</td>
       <td>${formatNumber(r.cost, 4)}</td>
+      <td>${r.note || ""}</td>
     </tr>
   `).join("");
 }
 
 function processData(payload) {
-  if (payload.error) {
-    setStatus(payload.error);
-    alert(payload.error);
+  if (!payload || payload.success === false) {
+    const msg = payload && payload.error ? payload.error : "資料讀取失敗";
+    setStatus(msg);
+    alert(msg);
     return;
   }
 
-  if (!payload.rows || !payload.rows.length) {
-    setStatus("沒有資料");
+  if (!payload.rawRows || !payload.priceRows) {
+    setStatus("資料格式不正確");
     return;
   }
 
@@ -708,7 +684,7 @@ function loadData() {
 
   const s = document.createElement("script");
   s.id = "jsonp-loader";
-  s.src = `${API_URL}?callback=handleStockData&t=${Date.now()}`;
+  s.src = `${API_URL}&callback=handleStockData&t=${Date.now()}`;
   s.onerror = function() {
     setStatus("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
     alert("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
