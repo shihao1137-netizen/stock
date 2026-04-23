@@ -87,19 +87,26 @@
     .btn:hover{
       background:linear-gradient(180deg,#2f2f2f 0%,#1d1d1d 100%);
     }
+    .tab-btn.active{
+      background:linear-gradient(180deg,#3a2b08 0%,#221806 100%);
+      border-color:#8b6a20;
+      box-shadow:0 0 0 1px rgba(247,199,92,.18) inset;
+    }
     .kpi-grid{
       display:grid;
       grid-template-columns:repeat(7,minmax(0,1fr));
       gap:12px;
       margin-bottom:22px;
     }
-    .card{
+    .card,.symbol-card{
       background:
         radial-gradient(circle at top left,rgba(247,199,92,.08),transparent 35%),
         linear-gradient(180deg,#131313 0%,#0c0c0c 100%);
       border:1px solid var(--border);
       border-radius:18px;
       padding:16px;
+    }
+    .card{
       min-height:112px;
     }
     .card h3{
@@ -173,6 +180,45 @@
     }
     .up{color:var(--green)!important;font-weight:800}
     .down{color:var(--red)!important;font-weight:800}
+    .view-switch{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-bottom:18px;
+    }
+    .view-panel{
+      display:none;
+    }
+    .view-panel.active{
+      display:block;
+    }
+    .symbol-kpi-grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:12px;
+      margin-bottom:22px;
+    }
+    .symbol-card .symbol{
+      color:var(--gold);
+      font-size:18px;
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .symbol-card .meta{
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:10px;
+    }
+    .symbol-card .profit{
+      font-size:24px;
+      font-weight:900;
+      line-height:1.1;
+    }
+    .symbol-card .rate{
+      margin-top:6px;
+      font-size:13px;
+      color:#d9d9d9;
+    }
     @media (max-width:1400px){
       .kpi-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
     }
@@ -195,120 +241,207 @@
     <button class="btn" type="button" onclick="reloadData()">重新整理資料</button>
   </div>
 
-  <div class="kpi-grid">
-    <div class="card">
-      <h3>即時股價</h3>
-      <div class="sub" id="kpiLatestDate">最新收盤日 --</div>
-      <div class="value" id="kpiRealtimePrice">--</div>
-    </div>
-
-    <div class="card">
-      <h3>持股數量</h3>
-      <div class="sub">目前總持股</div>
-      <div class="value" id="kpiShares">--</div>
-    </div>
-
-    <div class="card">
-      <h3>持股市值</h3>
-      <div class="sub">即時股價 × 持股數量</div>
-      <div class="value" id="kpiMarketValue">--</div>
-    </div>
-
-    <div class="card">
-      <h3>平均成本</h3>
-      <div class="sub">總成本 ÷ 持股數量</div>
-      <div class="value" id="kpiCost">--</div>
-    </div>
-
-    <div class="card">
-      <h3>總成本</h3>
-      <div class="sub">買價總額總和</div>
-      <div class="value" id="kpiBuyAmount">--</div>
-    </div>
-
-    <div class="card">
-      <h3>未實現損益</h3>
-      <div class="sub">市值 - 總成本</div>
-      <div class="value" id="kpiProfit">--</div>
-    </div>
-
-    <div class="card">
-      <h3>報酬率</h3>
-      <div class="sub">未實現損益 / 總成本</div>
-      <div class="value" id="kpiReturnRate">--</div>
-    </div>
-  </div>
-
   <div class="section">
-    <h2>TSMC 歷史股價</h2>
-    <div class="chart-box">
-      <canvas id="priceChart"></canvas>
-    </div>
-    <div class="hint">藍線為每日股價；橘線為當日有買入時的買入單價。</div>
-  </div>
-
-  <div class="section two-col">
-    <div>
-      <h2>成本 vs 股價</h2>
-      <div class="chart-box">
-        <canvas id="costChart"></canvas>
+    <h2>整體投資組合</h2>
+    <div class="kpi-grid" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+      <div class="card">
+        <h3>總投資成本</h3>
+        <div class="sub">TSMC + 其他持股</div>
+        <div class="value" id="portfolioTotalCost">--</div>
       </div>
-    </div>
-    <div>
-      <h2>價差趨勢</h2>
-      <div class="chart-box">
-        <canvas id="diffChart"></canvas>
+      <div class="card">
+        <h3>總投資市值</h3>
+        <div class="sub">目前所有持股市值</div>
+        <div class="value" id="portfolioTotalValue">--</div>
+      </div>
+      <div class="card">
+        <h3>所有持股損益</h3>
+        <div class="sub">整體未實現損益</div>
+        <div class="value" id="portfolioTotalProfit">--</div>
+      </div>
+      <div class="card">
+        <h3>整體報酬率</h3>
+        <div class="sub">總損益 / 總成本</div>
+        <div class="value" id="portfolioReturnRate">--</div>
       </div>
     </div>
   </div>
 
   <div class="section">
-    <h2>年度摘要</h2>
-    <div class="table-box">
-      <table>
-        <thead>
-          <tr>
-            <th>年份</th>
-            <th>當年買入股數</th>
-            <th>當年買入成本</th>
-            <th>累積股數</th>
-            <th>累積總成本</th>
-            <th>即時股價</th>
-            <th>平均成本</th>
-            <th>即時市值</th>
-            <th>未實現損益</th>
-            <th>報酬率</th>
-          </tr>
-        </thead>
-        <tbody id="yearSummaryBody">
-          <tr><td colspan="10">載入中...</td></tr>
-        </tbody>
-      </table>
+    <h2>各股損益</h2>
+    <div id="symbolProfitCards" class="symbol-kpi-grid"></div>
+  </div>
+
+  <div class="view-switch">
+    <button class="btn tab-btn active" id="tab-tsmc" type="button" onclick="setView('tsmc')">TSMC 檢視</button>
+    <button class="btn tab-btn" id="tab-other" type="button" onclick="setView('other')">其他持股檢視</button>
+  </div>
+
+  <div id="tsmcView" class="view-panel active">
+    <div class="kpi-grid">
+      <div class="card">
+        <h3>即時股價</h3>
+        <div class="sub" id="kpiLatestDate">最新收盤日 --</div>
+        <div class="value" id="kpiRealtimePrice">--</div>
+      </div>
+
+      <div class="card">
+        <h3>持股數量</h3>
+        <div class="sub">目前總持股</div>
+        <div class="value" id="kpiShares">--</div>
+      </div>
+
+      <div class="card">
+        <h3>持股市值</h3>
+        <div class="sub">即時股價 × 持股數量</div>
+        <div class="value" id="kpiMarketValue">--</div>
+      </div>
+
+      <div class="card">
+        <h3>平均成本</h3>
+        <div class="sub">總成本 ÷ 持股數量</div>
+        <div class="value" id="kpiCost">--</div>
+      </div>
+
+      <div class="card">
+        <h3>總成本</h3>
+        <div class="sub">買價總額總和</div>
+        <div class="value" id="kpiBuyAmount">--</div>
+      </div>
+
+      <div class="card">
+        <h3>未實現損益</h3>
+        <div class="sub">市值 - 總成本</div>
+        <div class="value" id="kpiProfit">--</div>
+      </div>
+
+      <div class="card">
+        <h3>報酬率</h3>
+        <div class="sub">未實現損益 / 總成本</div>
+        <div class="value" id="kpiReturnRate">--</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>TSMC 歷史股價</h2>
+      <div class="chart-box">
+        <canvas id="priceChart"></canvas>
+      </div>
+      <div class="hint">藍線為每日股價；橘線為當日有買入時的買入單價。</div>
+    </div>
+
+    <div class="section two-col">
+      <div>
+        <h2>成本 vs 股價</h2>
+        <div class="chart-box">
+          <canvas id="costChart"></canvas>
+        </div>
+      </div>
+      <div>
+        <h2>價差趨勢</h2>
+        <div class="chart-box">
+          <canvas id="diffChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>年度摘要</h2>
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>年份</th>
+              <th>當年買入股數</th>
+              <th>當年買入成本</th>
+              <th>累積股數</th>
+              <th>累積總成本</th>
+              <th>即時股價</th>
+              <th>平均成本</th>
+              <th>即時市值</th>
+              <th>未實現損益</th>
+              <th>報酬率</th>
+            </tr>
+          </thead>
+          <tbody id="yearSummaryBody">
+            <tr><td colspan="10">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>股票 RAW</h2>
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>股價</th>
+              <th>公</th>
+              <th>自</th>
+              <th>購買總股</th>
+              <th>買價總額</th>
+              <th>現值價差</th>
+              <th>單股價差</th>
+              <th>成本</th>
+              <th>備註</th>
+            </tr>
+          </thead>
+          <tbody id="rawBody">
+            <tr><td colspan="10">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
-  <div class="section">
-    <h2>股票 RAW</h2>
-    <div class="table-box">
-      <table>
-        <thead>
-          <tr>
-            <th>日期</th>
-            <th>股價</th>
-            <th>公</th>
-            <th>自</th>
-            <th>購買總股</th>
-            <th>買價總額</th>
-            <th>現值價差</th>
-            <th>單股價差</th>
-            <th>成本</th>
-            <th>備註</th>
-          </tr>
-        </thead>
-        <tbody id="rawBody">
-          <tr><td colspan="10">載入中...</td></tr>
-        </tbody>
-      </table>
+  <div id="otherView" class="view-panel">
+    <div class="section">
+      <h2>其他持股總覽</h2>
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>代號</th>
+              <th>總股數</th>
+              <th>平均成本</th>
+              <th>總成本</th>
+              <th>現價</th>
+              <th>市值</th>
+              <th>未實現損益</th>
+              <th>報酬率</th>
+            </tr>
+          </thead>
+          <tbody id="otherBody">
+            <tr><td colspan="8">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>其他持股明細</h2>
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th>日期</th>
+              <th>代號</th>
+              <th>股數</th>
+              <th>成交均價</th>
+              <th>買價總額</th>
+              <th>股票現值</th>
+              <th>市值</th>
+              <th>現值價差</th>
+              <th>報酬率</th>
+            </tr>
+          </thead>
+          <tbody id="otherRawBody">
+            <tr><td colspan="9">載入中...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -321,6 +454,7 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwW4Sj7TUNOr4ClpAkiLZpb
 let priceChart = null;
 let costChart = null;
 let diffChart = null;
+let currentView = "tsmc";
 
 function formatNumber(n, digits = 0) {
   return Number(n || 0).toLocaleString("zh-TW", {
@@ -356,10 +490,18 @@ function animateValue(el, endValue, digits = 0, duration = 900) {
   requestAnimationFrame(step);
 }
 
+function setView(view) {
+  currentView = view;
+  document.getElementById("tsmcView").classList.toggle("active", view === "tsmc");
+  document.getElementById("otherView").classList.toggle("active", view === "other");
+  document.getElementById("tab-tsmc").classList.toggle("active", view === "tsmc");
+  document.getElementById("tab-other").classList.toggle("active", view === "other");
+}
+
 function destroyCharts() {
-  if (priceChart) priceChart.destroy();
-  if (costChart) costChart.destroy();
-  if (diffChart) diffChart.destroy();
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+  if (costChart) { costChart.destroy(); costChart = null; }
+  if (diffChart) { diffChart.destroy(); diffChart = null; }
 }
 
 function buildFallbackBuyPriceMap(rawRows) {
@@ -369,6 +511,68 @@ function buildFallbackBuyPriceMap(rawRows) {
     map[key] = Number(r.price || 0);
   });
   return map;
+}
+
+function renderPortfolio(payload) {
+  const p = payload.portfolioSummary || {};
+
+  document.getElementById("portfolioTotalCost").innerText = formatNumber(p.totalCost || 0, 2);
+  document.getElementById("portfolioTotalValue").innerText = formatNumber(p.totalMarketValue || 0, 2);
+  document.getElementById("portfolioTotalProfit").innerText = formatNumber(p.totalProfit || 0, 2);
+  document.getElementById("portfolioReturnRate").innerText = `${formatNumber((p.totalReturnRate || 0) * 100, 2)}%`;
+
+  const profitEl = document.getElementById("portfolioTotalProfit");
+  const rateEl = document.getElementById("portfolioReturnRate");
+
+  profitEl.className = "value " + ((p.totalProfit || 0) >= 0 ? "up" : "down");
+  rateEl.className = "value " + (((p.totalReturnRate || 0) * 100) >= 0 ? "up" : "down");
+}
+
+function renderSymbolProfitCards(payload) {
+  const wrap = document.getElementById("symbolProfitCards");
+  const cards = [];
+
+  cards.push({
+    symbol: "TSMC",
+    shares: Number(payload.summary?.totalShares || 0),
+    currentPrice: Number(payload.realtimePrice || 0),
+    marketValue: Number(payload.summary?.marketValue || 0),
+    profit: Number(payload.summary?.unrealizedGain || 0),
+    returnRate: Number(payload.summary?.returnRate || 0)
+  });
+
+  (payload.otherSummary?.items || []).forEach(item => {
+    cards.push({
+      symbol: item.symbol,
+      shares: Number(item.shares || 0),
+      currentPrice: Number(item.currentPrice || 0),
+      marketValue: Number(item.marketValue || 0),
+      profit: Number(item.profit || 0),
+      returnRate: Number(item.returnRate || 0)
+    });
+  });
+
+  if (!cards.length) {
+    wrap.innerHTML = `<div class="symbol-card">沒有資料</div>`;
+    return;
+  }
+
+  wrap.innerHTML = cards.map(item => `
+    <div class="symbol-card">
+      <div class="symbol">${item.symbol}</div>
+      <div class="meta">
+        股數 ${formatNumber(item.shares, 0)}　
+        現價 ${formatNumber(item.currentPrice, 2)}
+      </div>
+      <div class="profit ${item.profit >= 0 ? 'up' : 'down'}">
+        ${formatNumber(item.profit, 2)}
+      </div>
+      <div class="rate">
+        市值 ${formatNumber(item.marketValue, 2)}　
+        報酬率 <span class="${item.returnRate >= 0 ? 'up' : 'down'}">${formatNumber(item.returnRate * 100, 2)}%</span>
+      </div>
+    </div>
+  `).join("");
 }
 
 function renderKPI(payload) {
@@ -648,6 +852,58 @@ function renderRaw(payload) {
   `).join("");
 }
 
+function renderOtherHoldings(payload) {
+  const tbody = document.getElementById("otherBody");
+  const items = (payload.otherSummary && payload.otherSummary.items) ? payload.otherSummary.items : [];
+
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td colspan="8">沒有資料</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = items.map(item => `
+    <tr>
+      <td>${item.symbol}</td>
+      <td>${formatNumber(item.shares, 0)}</td>
+      <td>${formatNumber(item.avgCost, 4)}</td>
+      <td>${formatNumber(item.totalCost, 2)}</td>
+      <td>${formatNumber(item.currentPrice, 2)}</td>
+      <td>${formatNumber(item.marketValue, 2)}</td>
+      <td class="${item.profit >= 0 ? 'up' : 'down'}">${formatNumber(item.profit, 2)}</td>
+      <td class="${item.returnRate >= 0 ? 'up' : 'down'}">${formatNumber(item.returnRate * 100, 2)}%</td>
+    </tr>
+  `).join("");
+}
+
+function renderOtherRaw(payload) {
+  const tbody = document.getElementById("otherRawBody");
+  const rows = [...(payload.otherRows || [])].reverse();
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="9">沒有資料</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const marketValue = Number(r.buyAmount || 0) + Number(r.currentDiff || 0);
+    const returnRate = Number(r.buyAmount || 0) ? (Number(r.currentDiff || 0) / Number(r.buyAmount || 0)) * 100 : 0;
+
+    return `
+      <tr>
+        <td>${formatDateText(r.date)}</td>
+        <td>${r.symbol}</td>
+        <td>${formatNumber(r.shares, 0)}</td>
+        <td>${formatNumber(r.avgPrice, 4)}</td>
+        <td>${formatNumber(r.buyAmount, 2)}</td>
+        <td>${formatNumber(r.currentPrice, 2)}</td>
+        <td>${formatNumber(marketValue, 2)}</td>
+        <td class="${Number(r.currentDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.currentDiff, 2)}</td>
+        <td class="${returnRate >= 0 ? 'up' : 'down'}">${formatNumber(returnRate, 2)}%</td>
+      </tr>
+    `;
+  }).join("");
+}
+
 function processData(payload) {
   if (!payload || payload.success === false) {
     const msg = payload && payload.error ? payload.error : "資料讀取失敗";
@@ -662,10 +918,18 @@ function processData(payload) {
   }
 
   destroyCharts();
+
+  renderPortfolio(payload);
+  renderSymbolProfitCards(payload);
+
   renderKPI(payload);
   renderCharts(payload);
   renderYearSummary(payload);
   renderRaw(payload);
+
+  renderOtherHoldings(payload);
+  renderOtherRaw(payload);
+
   setStatus(`資料更新完成：${new Date().toLocaleString("zh-TW")}`);
 }
 
@@ -692,6 +956,7 @@ function loadData() {
   document.body.appendChild(s);
 }
 
+setView("tsmc");
 loadData();
 </script>
 </body>
