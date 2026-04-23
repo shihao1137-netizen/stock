@@ -684,7 +684,7 @@ function loadData() {
 
   const s = document.createElement("script");
   s.id = "jsonp-loader";
-  s.src = `${API_URL}&callback=handleStockData&t=${Date.now()}`;
+  s.src = `${API_URL}?callback=handleStockData&t=${Date.now()}`;
   s.onerror = function() {
     setStatus("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
     alert("資料讀取失敗，請檢查 Apps Script 權限或 API_URL");
