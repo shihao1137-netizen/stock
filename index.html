@@ -536,20 +536,24 @@ function renderSymbolProfitCards(payload) {
   const wrap = document.getElementById("symbolProfitCards");
   const cards = [];
 
+  // TSMC
   cards.push({
     symbol: "TSMC",
     shares: Number(payload.summary?.totalShares || 0),
     currentPrice: Number(payload.realtimePrice || 0),
+    avgCost: Number(payload.summary?.averageCost || 0),
     marketValue: Number(payload.summary?.marketValue || 0),
     profit: Number(payload.summary?.unrealizedGain || 0),
     returnRate: Number(payload.summary?.returnRate || 0)
   });
 
+  // 其他持股
   (payload.otherSummary?.items || []).forEach(item => {
     cards.push({
       symbol: item.symbol,
       shares: Number(item.shares || 0),
       currentPrice: Number(item.currentPrice || 0),
+      avgCost: Number(item.avgCost || 0),
       marketValue: Number(item.marketValue || 0),
       profit: Number(item.profit || 0),
       returnRate: Number(item.returnRate || 0)
@@ -561,24 +565,51 @@ function renderSymbolProfitCards(payload) {
     return;
   }
 
-  wrap.innerHTML = cards.map(item => `
-    <div class="symbol-card">
-      <div class="symbol">${item.symbol}</div>
-      <div class="meta">
-        股數 ${formatNumber(item.shares, 0)}　
-        現價 ${formatNumber(item.currentPrice, 2)}
-      </div>
-      <div class="profit ${item.profit >= 0 ? 'up' : 'down'}">
-        ${formatNumber(item.profit, 2)}
-      </div>
-      <div class="rate">
-        市值 ${formatNumber(item.marketValue, 2)}　
-        報酬率 <span class="${item.returnRate >= 0 ? 'up' : 'down'}">${formatNumber(item.returnRate * 100, 2)}%</span>
-      </div>
-    </div>
-  `).join("");
-}
+  wrap.innerHTML = cards.map(item => {
+    const priceChangeRate = item.avgCost > 0
+      ? (item.currentPrice - item.avgCost) / item.avgCost
+      : 0;
 
+    const isUp = priceChangeRate >= 0;
+    const priceChangeText = isUp
+      ? `▲ ${formatNumber(priceChangeRate * 100, 2)}%`
+      : `▼ ${formatNumber(Math.abs(priceChangeRate * 100), 2)}%`;
+
+    const priceChangeClass = isUp ? "up" : "down";
+    const profitClass = item.profit >= 0 ? "up" : "down";
+    const returnClass = item.returnRate >= 0 ? "up" : "down";
+
+    return `
+      <div class="symbol-card">
+        <div class="symbol">${item.symbol}</div>
+
+        <div class="meta">
+          股數 ${formatNumber(item.shares, 0)}
+        </div>
+
+        <div class="meta">
+          成本 ${formatNumber(item.avgCost, 2)}
+        </div>
+
+        <div class="meta">
+          現價 ${formatNumber(item.currentPrice, 2)}
+          <span class="price-change-badge ${priceChangeClass}">
+            ${priceChangeText}
+          </span>
+        </div>
+
+        <div class="profit ${profitClass}">
+          ${formatNumber(item.profit, 2)}
+        </div>
+
+        <div class="rate">
+          市值 ${formatNumber(item.marketValue, 2)}　
+          報酬率 <span class="${returnClass}">${formatNumber(item.returnRate * 100, 2)}%</span>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
 function renderKPI(payload) {
   const summary = payload.summary || {};
   const realtimePrice = Number(payload.realtimePrice || 0);
