@@ -106,9 +106,7 @@
       border-radius:18px;
       padding:16px;
     }
-    .card{
-      min-height:112px;
-    }
+    .card{min-height:112px}
     .card h3{
       margin:0 0 6px 0;
       font-size:13px;
@@ -186,12 +184,8 @@
       flex-wrap:wrap;
       margin-bottom:18px;
     }
-    .view-panel{
-      display:none;
-    }
-    .view-panel.active{
-      display:block;
-    }
+    .view-panel{display:none}
+    .view-panel.active{display:block}
     .symbol-kpi-grid{
       display:grid;
       grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
@@ -406,6 +400,8 @@
               <th>代號</th>
               <th>總股數</th>
               <th>平均成本</th>
+              <th>買價總額</th>
+              <th>手續費</th>
               <th>總成本</th>
               <th>現價</th>
               <th>市值</th>
@@ -414,7 +410,7 @@
             </tr>
           </thead>
           <tbody id="otherBody">
-            <tr><td colspan="8">載入中...</td></tr>
+            <tr><td colspan="10">載入中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -431,14 +427,16 @@
               <th>股數</th>
               <th>成交均價</th>
               <th>買價總額</th>
+              <th>手續費</th>
+              <th>總成本</th>
               <th>股票現值</th>
               <th>市值</th>
-              <th>現值價差</th>
+              <th>未實現損益</th>
               <th>報酬率</th>
             </tr>
           </thead>
           <tbody id="otherRawBody">
-            <tr><td colspan="9">載入中...</td></tr>
+            <tr><td colspan="11">載入中...</td></tr>
           </tbody>
         </table>
       </div>
@@ -857,7 +855,7 @@ function renderOtherHoldings(payload) {
   const items = (payload.otherSummary && payload.otherSummary.items) ? payload.otherSummary.items : [];
 
   if (!items.length) {
-    tbody.innerHTML = `<tr><td colspan="8">沒有資料</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10">沒有資料</td></tr>`;
     return;
   }
 
@@ -866,6 +864,8 @@ function renderOtherHoldings(payload) {
       <td>${item.symbol}</td>
       <td>${formatNumber(item.shares, 0)}</td>
       <td>${formatNumber(item.avgCost, 4)}</td>
+      <td>${formatNumber(item.buyAmount, 2)}</td>
+      <td>${formatNumber(item.fee, 2)}</td>
       <td>${formatNumber(item.totalCost, 2)}</td>
       <td>${formatNumber(item.currentPrice, 2)}</td>
       <td>${formatNumber(item.marketValue, 2)}</td>
@@ -880,13 +880,15 @@ function renderOtherRaw(payload) {
   const rows = [...(payload.otherRows || [])].reverse();
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="9">沒有資料</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="11">沒有資料</td></tr>`;
     return;
   }
 
   tbody.innerHTML = rows.map(r => {
-    const marketValue = Number(r.buyAmount || 0) + Number(r.currentDiff || 0);
-    const returnRate = Number(r.buyAmount || 0) ? (Number(r.currentDiff || 0) / Number(r.buyAmount || 0)) * 100 : 0;
+    const totalCost = Number(r.buyAmount || 0) + Number(r.fee || 0);
+    const marketValue = Number(r.currentPrice || 0) * Number(r.shares || 0);
+    const profit = marketValue - totalCost;
+    const returnRate = totalCost ? (profit / totalCost) * 100 : 0;
 
     return `
       <tr>
@@ -895,9 +897,11 @@ function renderOtherRaw(payload) {
         <td>${formatNumber(r.shares, 0)}</td>
         <td>${formatNumber(r.avgPrice, 4)}</td>
         <td>${formatNumber(r.buyAmount, 2)}</td>
+        <td>${formatNumber(r.fee, 2)}</td>
+        <td>${formatNumber(totalCost, 2)}</td>
         <td>${formatNumber(r.currentPrice, 2)}</td>
         <td>${formatNumber(marketValue, 2)}</td>
-        <td class="${Number(r.currentDiff) >= 0 ? 'up' : 'down'}">${formatNumber(r.currentDiff, 2)}</td>
+        <td class="${profit >= 0 ? 'up' : 'down'}">${formatNumber(profit, 2)}</td>
         <td class="${returnRate >= 0 ? 'up' : 'down'}">${formatNumber(returnRate, 2)}%</td>
       </tr>
     `;
