@@ -885,8 +885,8 @@ function renderOtherRaw(payload) {
   }
 
   tbody.innerHTML = rows.map(r => {
-    const totalCost = Number(r.buyAmount || 0) + Number(r.fee || 0);
-    const marketValue = Number(r.currentPrice || 0) * Number(r.shares || 0);
+    const totalCost = Number(r.totalCost || 0);
+    const marketValue = Number(r.marketValue || 0);
     const profit = marketValue - totalCost;
     const returnRate = totalCost ? (profit / totalCost) * 100 : 0;
 
