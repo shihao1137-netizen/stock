@@ -17,6 +17,195 @@
       --green:#7ee787;
       --red:#ff8d8d;
     }
+    .card .value{
+  word-break:normal;
+  overflow-wrap:anywhere;
+}
+
+@media (max-width: 768px){
+  body{
+    padding:16px 14px 28px;
+  }
+
+  body::before{
+    font-size:92px;
+    top:88px;
+    right:8px;
+    opacity:0.06;
+  }
+
+  body::after{
+    width:170px;
+    height:170px;
+    top:76px;
+    right:6px;
+    box-shadow:0 0 0 12px rgba(247,199,92,.025),0 0 0 24px rgba(247,199,92,.018);
+  }
+
+  .wrap{
+    max-width:100%;
+  }
+
+  h1{
+    font-size:30px;
+    line-height:1.1;
+    margin-bottom:10px;
+  }
+
+  .subtitle{
+    font-size:14px;
+    margin-bottom:14px;
+    line-height:1.4;
+  }
+
+  .toolbar{
+    gap:8px;
+    margin-bottom:16px;
+  }
+
+  .btn{
+    width:100%;
+    padding:12px 14px;
+    font-size:15px;
+    border-radius:14px;
+  }
+
+  .view-switch{
+    gap:8px;
+    margin-bottom:16px;
+  }
+
+  .view-switch .btn{
+    width:calc(50% - 4px);
+    padding:11px 10px;
+    font-size:14px;
+  }
+
+  .section{
+    margin-top:20px;
+  }
+
+  .section h2{
+    font-size:20px;
+    margin-bottom:10px;
+  }
+
+  /* 上方 KPI */
+  .kpi-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:10px;
+    margin-bottom:18px;
+  }
+
+  .card{
+    min-height:auto;
+    padding:14px 12px;
+    border-radius:18px;
+  }
+
+  .card h3{
+    font-size:12px;
+    line-height:1.35;
+    margin-bottom:4px;
+  }
+
+  .card .sub{
+    font-size:11px;
+    line-height:1.35;
+    margin-bottom:8px;
+    word-break:break-word;
+  }
+
+  .card .value{
+    font-size:20px;
+    line-height:1.12;
+    overflow-wrap:anywhere;
+  }
+
+  /* 各股損益卡改單欄 */
+  .symbol-kpi-grid{
+    grid-template-columns:1fr;
+    gap:12px;
+    margin-bottom:18px;
+  }
+
+  .symbol-card{
+    padding:16px 14px;
+    border-radius:18px;
+  }
+
+  .symbol-card .symbol{
+    font-size:22px;
+    margin-bottom:10px;
+  }
+
+  .symbol-card .meta{
+    font-size:14px;
+    line-height:1.55;
+    margin-bottom:6px;
+  }
+
+  .symbol-card .profit{
+    font-size:28px;
+    line-height:1.1;
+    margin-top:10px;
+    margin-bottom:10px;
+    word-break:break-word;
+    overflow-wrap:anywhere;
+  }
+
+  .symbol-card .rate{
+    font-size:14px;
+    line-height:1.5;
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+
+  .price-change-badge{
+    display:inline-block;
+    margin-left:8px;
+    font-size:14px;
+    font-weight:800;
+  }
+
+  /* 圖表改單欄 */
+  .two-col{
+    grid-template-columns:1fr;
+    gap:14px;
+  }
+
+  .chart-box{
+    padding:10px;
+    border-radius:18px;
+  }
+
+  .chart-box canvas{
+    height:300px !important;
+  }
+
+  .hint{
+    font-size:12px;
+    line-height:1.5;
+    margin-top:6px;
+  }
+
+  /* 表格保留橫向捲動 */
+  .table-box{
+    border-radius:16px;
+    overflow:auto;
+    -webkit-overflow-scrolling:touch;
+  }
+
+  table{
+    min-width:900px;
+  }
+
+  th, td{
+    font-size:12px;
+    padding:8px 6px;
+  }
+}
     .price-change-badge{
   display:inline-block;
   margin-left:8px;
@@ -536,7 +725,6 @@ function renderSymbolProfitCards(payload) {
   const wrap = document.getElementById("symbolProfitCards");
   const cards = [];
 
-  // TSMC
   cards.push({
     symbol: "TSMC",
     shares: Number(payload.summary?.totalShares || 0),
@@ -547,7 +735,6 @@ function renderSymbolProfitCards(payload) {
     returnRate: Number(payload.summary?.returnRate || 0)
   });
 
-  // 其他持股
   (payload.otherSummary?.items || []).forEach(item => {
     cards.push({
       symbol: item.symbol,
@@ -583,13 +770,8 @@ function renderSymbolProfitCards(payload) {
       <div class="symbol-card">
         <div class="symbol">${item.symbol}</div>
 
-        <div class="meta">
-          股數 ${formatNumber(item.shares, 0)}
-        </div>
-
-        <div class="meta">
-          成本 ${formatNumber(item.avgCost, 2)}
-        </div>
+        <div class="meta">股數 ${formatNumber(item.shares, 0)}</div>
+        <div class="meta">成本 ${formatNumber(item.avgCost, 2)}</div>
 
         <div class="meta">
           現價 ${formatNumber(item.currentPrice, 2)}
@@ -603,8 +785,8 @@ function renderSymbolProfitCards(payload) {
         </div>
 
         <div class="rate">
-          市值 ${formatNumber(item.marketValue, 2)}　
-          報酬率 <span class="${returnClass}">${formatNumber(item.returnRate * 100, 2)}%</span>
+          <div>市值 ${formatNumber(item.marketValue, 2)}</div>
+          <div>報酬率 <span class="${returnClass}">${formatNumber(item.returnRate * 100, 2)}%</span></div>
         </div>
       </div>
     `;
